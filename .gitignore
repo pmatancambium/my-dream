@@ -2,3 +2,5 @@
 myenv/
 # ignore .env file
 .env
+
+.streamlit/

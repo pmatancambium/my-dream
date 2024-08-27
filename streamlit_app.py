@@ -5,15 +5,25 @@ import os
 from dotenv import load_dotenv
 import time
 import random
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import requests
 from io import BytesIO
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from email.header import Header
 
 # Load environment variables
 load_dotenv()
 client = OpenAI()
 # Set up OpenAI API key
 openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+# Email configuration
+EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+RECIPIENT_EMAIL = st.secrets["RECIPIENT_EMAIL"]
 
 # Custom CSS to enable RTL for the entire app, except for the fun fact section
 st.markdown(
@@ -47,36 +57,28 @@ fun_facts = [
     "'A dream you dream alone is only a dream. A dream you dream together is reality.' – John Lennon",
 ]
 
+def send_email(subject, body, image_data):
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_ADDRESS
+    msg['To'] = RECIPIENT_EMAIL
+    msg['Subject'] = Header(subject, 'utf-8')
 
-def add_name_to_image(image_url, name=None):
-    # Download the image
-    response = requests.get(image_url)
-    img = Image.open(BytesIO(response.content))
+    # Encode the body as UTF-8
+    body_utf8 = body.encode('utf-8')
+    msg.attach(MIMEText(body_utf8.decode('utf-8'), 'plain', 'utf-8'))
 
-    if name:
-        # Reverse the name text to simulate correct RTL rendering
-        reversed_name = name[::-1]
+    image = MIMEImage(image_data, name="dream_image.png")
+    msg.attach(image)
 
-        # Create a drawing object
-        draw = ImageDraw.Draw(img)
-
-        font_path = os.path.join(
-            os.path.dirname(__file__), "fonts", "DejaVuSans-Bold.ttf"
-        )
-        font = ImageFont.truetype(font_path, 40)
-        # Get the size of the text
-        left, top, right, bottom = font.getbbox(reversed_name)
-        text_width = right - left
-        text_height = bottom - top
-
-        # Calculate the position to center the text
-        position = ((img.width - text_width) / 2, 10)  # 10 pixels from the top
-
-        # Add the reversed text to the image
-        draw.text(position, reversed_name, font=font, fill=(255, 255, 255))  # White text
-
-    return img
-
+    try:
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"An error occurred while sending the email: {str(e)}")
+        return False
 
 # Streamlit app
 def main():
@@ -84,7 +86,6 @@ def main():
     st.write("מלאו את הפרטים הבאים כדי ליצור תמונה מהחלום שלכם:")
 
     # Input fields
-    name = st.text_input("שם המשתמש:")
     character = st.text_input(
         "1. בחלומי אני (דמות או חיה. למשל, דמות היסטורית או דמות מספר/סרט):"
     )
@@ -138,16 +139,38 @@ def main():
                     )
                     image_url = response.data[0].url
 
-                    # Add name to the image if provided
-                    img_with_name = add_name_to_image(image_url, name)
+                    # Download the image
+                    response = requests.get(image_url)
+                    img = Image.open(BytesIO(response.content))
 
-                    # Display the image with or without the name overlay
-                    st.image(img_with_name, caption="התמונה שנוצרה מהחלום שלך")
+                    # Convert the image to a format that can be downloaded
+                    img_byte_arr = BytesIO()
+                    img.save(img_byte_arr, format='PNG')
+                    img_byte_arr = img_byte_arr.getvalue()
+
+                    # Display the image without any overlay
+                    st.image(img, caption="התמונה שנוצרה מהחלום שלך")
+
+                    # Add a download button
+                    st.download_button(
+                        label="הורד את התמונה",
+                        data=img_byte_arr,
+                        file_name="dream_image.png",
+                        mime="image/png"
+                    )
+
+                    # Send email
+                    email_subject = "New Dream Image Generated"
+                    email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
+                    if send_email(email_subject, email_body, img_byte_arr):
+                        st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
+                    else:
+                        st.warning("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
+
                 except Exception as e:
                     st.error(f"An error occurred while generating the image: {str(e)}")
         else:
             st.warning("אנא מלאו את כל השדות לפני יצירת התמונה.")
-
 
 if __name__ == "__main__":
     main()
