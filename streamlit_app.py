@@ -69,8 +69,8 @@ def add_name_to_image(image_url, name=None):
         # Calculate the position to center the text
         position = ((img.width - text_width) / 2, 10)  # 10 pixels from the top
 
-        # Add the text to the image
-        draw.text(position, name, font=font, fill=(255, 255, 255))  # White text
+        # Add the text to the image, specifying the direction as RTL
+        draw.text(position, name, font=font, fill=(255, 255, 255), direction="rtl")  # White text
 
     return img
 
