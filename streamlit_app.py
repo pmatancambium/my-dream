@@ -54,6 +54,9 @@ def add_name_to_image(image_url, name=None):
     img = Image.open(BytesIO(response.content))
 
     if name:
+        # Reverse the name text to simulate correct RTL rendering
+        reversed_name = name[::-1]
+
         # Create a drawing object
         draw = ImageDraw.Draw(img)
 
@@ -62,15 +65,15 @@ def add_name_to_image(image_url, name=None):
         )
         font = ImageFont.truetype(font_path, 40)
         # Get the size of the text
-        left, top, right, bottom = font.getbbox(name)
+        left, top, right, bottom = font.getbbox(reversed_name)
         text_width = right - left
         text_height = bottom - top
 
         # Calculate the position to center the text
         position = ((img.width - text_width) / 2, 10)  # 10 pixels from the top
 
-        # Add the text to the image, specifying the direction as RTL
-        draw.text(position, name, font=font, fill=(255, 255, 255), direction="rtl")  # White text
+        # Add the reversed text to the image
+        draw.text(position, reversed_name, font=font, fill=(255, 255, 255))  # White text
 
     return img
 
