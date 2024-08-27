@@ -13,7 +13,7 @@ from io import BytesIO
 load_dotenv()
 client = OpenAI()
 # Set up OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Custom CSS to enable RTL for the entire app, except for the fun fact section
 st.markdown(
