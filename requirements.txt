@@ -1,3 +1,4 @@
 openai
 Pillow
 python-dotenv
+deep_translator

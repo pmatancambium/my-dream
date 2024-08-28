@@ -1,6 +1,4 @@
 import streamlit as st
-from openai import OpenAI
-import openai
 import os
 from dotenv import load_dotenv
 import time
@@ -13,17 +11,32 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.header import Header
+from deep_translator import GoogleTranslator
 
 # Load environment variables
 load_dotenv()
-client = OpenAI()
-# Set up OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+# Leonardo AI API configuration
+LEONARDO_API_KEY = st.secrets["LEONARDO_API_KEY"]
+LEONARDO_API_URL = "https://cloud.leonardo.ai/api/rest/v1/generations"
 
 # Email configuration
 EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 RECIPIENT_EMAIL = st.secrets["RECIPIENT_EMAIL"]
+
+
+# Function to authenticate users
+def authenticate(username, password):
+    usernames = st.secrets["credentials"]["usernames"]
+    passwords = st.secrets["credentials"]["passwords"]
+
+    if username in usernames:
+        index = usernames.index(username)
+        if passwords[index] == password:
+            return True
+    return False
+
 
 # Custom CSS to enable RTL for the entire app, except for the fun fact section
 st.markdown(
@@ -58,6 +71,11 @@ fun_facts = [
 ]
 
 
+def translate_text(text):
+    translator = GoogleTranslator(source="iw", target="en")
+    return translator.translate(text)
+
+
 def send_email(subject, body, image_data):
     msg = MIMEMultipart()
     msg["From"] = EMAIL_ADDRESS
@@ -82,8 +100,72 @@ def send_email(subject, body, image_data):
         return False
 
 
+# Function to generate image using Leonardo AI API
+def generate_image_leonardo(prompt):
+    headers = {
+        "Authorization": f"Bearer {LEONARDO_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "prompt": prompt,
+        # "modelId": "6b645e3a-d64f-4341-a6d8-7a3690fbf042",  # Leonardo Phoneix model
+        "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
+        # "width": 1024,
+        # "height": 576,
+        "num_images": 1,
+        "alchemy": True,
+        "presetStyle": "DYNAMIC",
+        "photoReal": True,
+        "photoRealVersion": "v2",
+        # "enhancePrompt": False,
+        # "styleUUID": "111dc692-d470-4eec-b791-3475abac4c46",
+    }
+
+    response = requests.post(LEONARDO_API_URL, json=payload, headers=headers)
+
+    if response.status_code == 200:
+        generation_id = response.json()["sdGenerationJob"]["generationId"]
+
+        # Poll for the generated image
+        while True:
+            status_response = requests.get(
+                f"{LEONARDO_API_URL}/{generation_id}", headers=headers
+            )
+            if status_response.status_code == 200:
+                generation_data = status_response.json()["generations_by_pk"]
+                if generation_data["status"] == "COMPLETE":
+                    return generation_data["generated_images"][0]["url"]
+            time.sleep(5)  # Wait for 5 seconds before polling again
+    else:
+        raise Exception(f"Failed to generate image: {response.text}")
+
+
+# Initialize session state
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+
 # Streamlit app
 def main():
+    if not st.session_state.authenticated:
+        # Login form
+        st.title("Login")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if authenticate(username, password):
+                st.session_state.authenticated = True
+                st.success(f"Welcome {username}!")
+                st.experimental_rerun()
+            else:
+                st.error("Invalid username or password")
+    else:
+        app()
+
+
+def app():
     st.title("חלום בתמונה")
     st.write("מלאו את הפרטים הבאים כדי ליצור תמונה מהחלום שלכם:")
 
@@ -112,6 +194,9 @@ def main():
             """
             st.write("הטקסט המלא:")
             st.info(complete_text)
+            complete_text_english = translate_text(complete_text)
+            # st.write("הטקסט המלא באנגלית:")
+            # st.info(complete_text_english)
 
             # Create an empty container for the fun fact
             fun_fact_container = st.empty()
@@ -130,17 +215,9 @@ def main():
                         )
                     time.sleep(1)
 
-                # Generate image using OpenAI API
+                # Generate image using Leonardo AI API
                 try:
-                    response = client.images.generate(
-                        model="dall-e-3",
-                        prompt=complete_text + "Try to make it fun and interesting!",
-                        size="1792x1024",
-                        quality="hd",
-                        style="vivid",
-                        n=1,
-                    )
-                    image_url = response.data[0].url
+                    image_url = generate_image_leonardo(complete_text_english)
 
                     # Download the image
                     response = requests.get(image_url)
@@ -174,6 +251,11 @@ def main():
                     st.error(f"An error occurred while generating the image: {str(e)}")
         else:
             st.warning("אנא מלאו את כל השדות לפני יצירת התמונה.")
+
+    # Add a logout button
+    if st.button("Logout"):
+        st.session_state.authenticated = False
+        st.experimental_rerun()
 
 
 if __name__ == "__main__":
