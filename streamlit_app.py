@@ -158,7 +158,7 @@ def main():
             if authenticate(username, password):
                 st.session_state.authenticated = True
                 st.success(f"Welcome {username}!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Invalid username or password")
     else:
@@ -255,7 +255,7 @@ def app():
     # Add a logout button
     if st.button("Logout"):
         st.session_state.authenticated = False
-        st.experimental_rerun()
+        st.rerun()
 
 
 if __name__ == "__main__":
