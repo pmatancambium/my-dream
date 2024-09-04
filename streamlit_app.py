@@ -106,21 +106,36 @@ def generate_image_leonardo(prompt):
         "Authorization": f"Bearer {LEONARDO_API_KEY}",
         "Content-Type": "application/json",
     }
-
     payload = {
         "prompt": prompt,
-        # "modelId": "6b645e3a-d64f-4341-a6d8-7a3690fbf042",  # Leonardo Phoneix model
-        "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
+        "modelId": "6b645e3a-d64f-4341-a6d8-7a3690fbf042",  # Leonardo Phoneix model
+        # "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
         # "width": 1024,
         # "height": 576,
         "num_images": 1,
         "alchemy": True,
-        "presetStyle": "DYNAMIC",
-        "photoReal": True,
-        "photoRealVersion": "v2",
+        # "presetStyle": "",
+        # "photoReal": True,
+        # "photoRealVersion": "v2",
         # "enhancePrompt": False,
         # "styleUUID": "111dc692-d470-4eec-b791-3475abac4c46",
+        "styleUUID": "556c1ee5-ec38-42e8-955a-1e82dad0ffa1",
     }
+
+    # payload = {
+    #     "prompt": prompt,
+    #     # "modelId": "6b645e3a-d64f-4341-a6d8-7a3690fbf042",  # Leonardo Phoneix model
+    #     "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
+    #     # "width": 1024,
+    #     # "height": 576,
+    #     "num_images": 1,
+    #     "alchemy": True,
+    #     "presetStyle": "CREATIVE",
+    #     "photoReal": True,
+    #     "photoRealVersion": "v2",
+    #     # "enhancePrompt": False,
+    #     "styleUUID": "111dc692-d470-4eec-b791-3475abac4c46",
+    # }
 
     response = requests.post(LEONARDO_API_URL, json=payload, headers=headers)
 
@@ -183,7 +198,14 @@ def app():
 
     # Generate button
     if st.button("צור תמונה"):
-        if name and character and clothing and vehicle and companion and background:
+        if (
+            name
+            and character
+            and clothing
+            and vehicle
+            and companion
+            and background
+        ):
             # Create the complete text
             complete_text = f"""
             בחלומי אני {character},
@@ -248,7 +270,9 @@ def app():
                         st.warning("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
 
                 except Exception as e:
-                    st.error(f"An error occurred while generating the image: {str(e)}")
+                    st.error(
+                        f"An error occurred while generating the image: {str(e)}"
+                    )
         else:
             st.warning("אנא מלאו את כל השדות לפני יצירת התמונה.")
 
