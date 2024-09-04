@@ -117,7 +117,7 @@ def generate_image_leonardo(prompt):
         # "presetStyle": "",
         # "photoReal": True,
         # "photoRealVersion": "v2",
-        # "enhancePrompt": False,
+        "enhancePrompt": True,
         # "styleUUID": "111dc692-d470-4eec-b791-3475abac4c46",
         "styleUUID": "556c1ee5-ec38-42e8-955a-1e82dad0ffa1",
     }
