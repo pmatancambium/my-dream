@@ -134,7 +134,7 @@ def upload_image_to_leonardo(image_file):
     return image_id
 
 
-def generate_image_leonardo(prompt, init_image_id):
+def generate_image_leonardo(prompt, init_image_id, preset_style):
     headers = {
         "Authorization": f"Bearer {LEONARDO_API_KEY}",
         "Content-Type": "application/json",
@@ -142,13 +142,10 @@ def generate_image_leonardo(prompt, init_image_id):
     payload = {
         "prompt": prompt,
         "modelId": "1e60896f-3c26-4296-8ecc-53e2afecc132",  # Leonardo Diffusion XL
-        # "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628", # Leonardo Kino XL
-        "presetStyle":"CREATIVE",
+        "presetStyle": preset_style,
         "photoReal": True,
         "photoRealVersion":"v2",
         "alchemy":True,
-        # "width": 512,
-        # "height": 512,
         "num_images": 1,
         "controlnets": [
             {
@@ -157,12 +154,7 @@ def generate_image_leonardo(prompt, init_image_id):
                 "preprocessorId": 133, # Character Reference Id
                 "strengthType": "High",
             }
-        ],
-        # "enhancePrompt": True
-        # "init_image_id": init_image_id,
-        # "init_strength": 0.9,
-        # "preprocessorId": 133, # Character Reference Id
-        # "guidance_scale": 7.5
+        ] if init_image_id else [],
     }
 
     response = requests.post(LEONARDO_API_URL, json=payload, headers=headers)
@@ -235,16 +227,24 @@ def app():
     st.write("תארו את החלום שלכם בקצרה (עד 200 תווים):")
 
     # Single input field for dream description
-    dream_description = st.text_area("בחלומי...", max_chars=200, height=100)
+    dream_description = st.text_area("בחלומי אני...", max_chars=200, height=100)
 
     # Image upload
     uploaded_file = st.file_uploader("העלו תמונה להנחיית החלום (אופציונלי)", type=["png", "jpg", "jpeg"])
+
+    # Preset style selection
+    preset_styles = [
+        "BOKEH", "CINEMATIC", "CINEMATIC_CLOSEUP", "CREATIVE", "FASHION", "FILM", "FOOD", "HDR",
+        "LONG_EXPOSURE", "MACRO", "MINIMALISTIC", "MONOCHROME", "MOODY", "NEUTRAL", "PORTRAIT",
+        "RETRO", "STOCK_PHOTO", "VIBRANT", "UNPROCESSED"
+    ]
+    selected_style = st.selectbox("בחרו סגנון עיבוד", preset_styles)
 
     # Generate button
     if st.button("צור תמונה"):
         if dream_description:
             # Create the complete text
-            complete_text = f"בחלומי {dream_description}"
+            complete_text = f"בחלומי אני {dream_description}"
             st.write("הטקסט המלא:")
             st.info(complete_text)
             complete_text_english = translate_text(complete_text)
@@ -272,7 +272,7 @@ def app():
                         init_image_id = upload_image_to_leonardo(uploaded_file)
                         thumbnail_image = Image.open(uploaded_file)
                     
-                    image_url = generate_image_leonardo(complete_text_english, init_image_id)
+                    image_url = generate_image_leonardo(complete_text_english, init_image_id, selected_style)
 
                     # Download the image
                     response = requests.get(image_url)
