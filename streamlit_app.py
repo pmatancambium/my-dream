@@ -230,6 +230,7 @@ def overlay_thumbnail(main_image, thumbnail, max_size=(300, 300), position=(10, 
 
 
 def app():
+    # 
     st.title("חלום בתמונה")
     st.write("תארו את החלום שלכם בקצרה (עד 200 תווים):")
 
