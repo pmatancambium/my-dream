@@ -227,7 +227,7 @@ def app():
     st.write("תארו את החלום שלכם בקצרה (עד 200 תווים):")
 
     # Single input field for dream description
-    dream_description = st.text_area("בחלומי אני...", max_chars=200, height=100)
+    dream_description = st.text_area("תיאור התמונה", max_chars=200, height=100)
 
     # Image upload
     uploaded_file = st.file_uploader("העלו תמונה להנחיית החלום (אופציונלי)", type=["png", "jpg", "jpeg"])
@@ -244,7 +244,7 @@ def app():
     if st.button("צור תמונה"):
         if dream_description:
             # Create the complete text
-            complete_text = f"בחלומי אני {dream_description}"
+            complete_text = f"{dream_description}"
             st.write("הטקסט המלא:")
             st.info(complete_text)
             complete_text_english = translate_text(complete_text)
