@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 import time
 import random
-from PIL import Image
+from PIL import Image, ImageDraw
 import requests
 from io import BytesIO
 import smtplib
@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.header import Header
 from deep_translator import GoogleTranslator
+import json
 
 # Load environment variables
 load_dotenv()
@@ -60,7 +61,7 @@ st.markdown(
 fun_facts = [
     "Did you know? The word 'dream' comes from the Middle English word 'dreme,' which means joy and music.",
     "'Imagination is the only weapon in the war against reality.' – Lewis Carroll",
-    "'The future belongs to those who believe in the beauty of their dreams.' – Eleanor Roosevelt",
+    "'The future belongs to those who believe in the beauty of their dreams.'  Eleanor Roosevelt",
     "Dreams can sometimes predict the future—it's called precognitive dreaming.",
     "'All men who have achieved great things have been great dreamers.' – Orison Swett Marden",
     "'Dreams are today's answers to tomorrow's questions.' – Edgar Cayce",
@@ -100,47 +101,75 @@ def send_email(subject, body, image_data):
         return False
 
 
-# Function to generate image using Leonardo AI API
-def generate_image_leonardo(prompt):
+def upload_image_to_leonardo(image_file):
+    url = "https://cloud.leonardo.ai/api/rest/v1/init-image"
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": f"Bearer {LEONARDO_API_KEY}"
+    }
+    
+    # Determine the file extension dynamically
+    file_extension = image_file.type.split('/')[-1].lower()
+    if file_extension not in ['png', 'jpeg']:
+        raise ValueError("Unsupported file format. Please upload a PNG or JPEG image.")
+    
+    # Use 'jpg' for 'jpeg' extension
+    payload = {"extension": "jpg" if file_extension == 'jpeg' else "png"}
+    
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Failed to get presigned URL: {response.text}")
+    
+    upload_data = response.json()['uploadInitImage']
+    fields = json.loads(upload_data['fields'])
+    upload_url = upload_data['url']
+    image_id = upload_data['id']
+    
+    files = {'file': (f'image.{file_extension}', image_file.getvalue(), f'image/{file_extension}')}
+    response = requests.post(upload_url, data=fields, files=files)
+    if response.status_code != 204:
+        raise Exception(f"Failed to upload image: {response.status_code}")
+    
+    return image_id
+
+
+def generate_image_leonardo(prompt, init_image_id):
     headers = {
         "Authorization": f"Bearer {LEONARDO_API_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
         "prompt": prompt,
-        "modelId": "6b645e3a-d64f-4341-a6d8-7a3690fbf042",  # Leonardo Phoneix model
-        # "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
-        # "width": 1024,
-        # "height": 576,
+        "modelId": "1e60896f-3c26-4296-8ecc-53e2afecc132",  # Leonardo Diffusion XL
+        # "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628", # Leonardo Kino XL
+        "presetStyle":"CREATIVE",
+        "photoReal": True,
+        "photoRealVersion":"v2",
+        "alchemy":True,
+        # "width": 512,
+        # "height": 512,
         "num_images": 1,
-        "alchemy": True,
-        # "presetStyle": "",
-        # "photoReal": True,
-        # "photoRealVersion": "v2",
-        "enhancePrompt": True,
-        # "styleUUID": "111dc692-d470-4eec-b791-3475abac4c46",
-        "styleUUID": "556c1ee5-ec38-42e8-955a-1e82dad0ffa1",
+        "controlnets": [
+            {
+                "initImageId": init_image_id,
+                "initImageType": "UPLOADED",
+                "preprocessorId": 133, # Character Reference Id
+                "strengthType": "High",
+            }
+        ],
+        # "enhancePrompt": True
+        # "init_image_id": init_image_id,
+        # "init_strength": 0.9,
+        # "preprocessorId": 133, # Character Reference Id
+        # "guidance_scale": 7.5
     }
-
-    # payload = {
-    #     "prompt": prompt,
-    #     # "modelId": "6b645e3a-d64f-4341-a6d8-7a3690fbf042",  # Leonardo Phoneix model
-    #     "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
-    #     # "width": 1024,
-    #     # "height": 576,
-    #     "num_images": 1,
-    #     "alchemy": True,
-    #     "presetStyle": "CREATIVE",
-    #     "photoReal": True,
-    #     "photoRealVersion": "v2",
-    #     # "enhancePrompt": False,
-    #     "styleUUID": "111dc692-d470-4eec-b791-3475abac4c46",
-    # }
 
     response = requests.post(LEONARDO_API_URL, json=payload, headers=headers)
 
     if response.status_code == 200:
         generation_id = response.json()["sdGenerationJob"]["generationId"]
+        # st.write(generation_id)
 
         # Poll for the generated image
         while True:
@@ -180,48 +209,45 @@ def main():
         app()
 
 
+def overlay_thumbnail(main_image, thumbnail, max_size=(300, 300), position=(10, 10)):
+    # Calculate the thumbnail size while maintaining aspect ratio
+    thumbnail.thumbnail(max_size, Image.LANCZOS)
+    
+    # Create a new image with an alpha channel for the border
+    thumb_w, thumb_h = thumbnail.size
+    thumbnail_with_border = Image.new('RGBA', (thumb_w+4, thumb_h+4), (255, 255, 255, 0))
+    
+    # Draw a white border
+    draw = ImageDraw.Draw(thumbnail_with_border)
+    draw.rectangle([0, 0, thumb_w+3, thumb_h+3], outline=(255, 255, 255, 255), width=2)
+    
+    # Paste the resized thumbnail onto the new image
+    thumbnail_with_border.paste(thumbnail, (2, 2))
+    
+    # Paste the thumbnail with border onto the main image
+    main_image.paste(thumbnail_with_border, position, thumbnail_with_border)
+    return main_image
+
+
 def app():
     st.title("חלום בתמונה")
-    st.write("מלאו את הפרטים הבאים כדי ליצור תמונה מהחלום שלכם:")
+    st.write("תארו את החלום שלכם בקצרה (עד 200 תווים):")
 
-    # Input fields
-    name = st.text_input("שם:")
-    character = st.text_input(
-        "1. בחלומי אני (דמות או חיה. למשל, דמות היסטורית או דמות מספר/סרט):"
-    )
-    clothing = st.text_input("2. לבוש ב:")
-    vehicle = st.text_input(
-        "3. אני נוסע ב (כלי רכב, כרכרה, יאכטה, חללית וכל מה שעולה בדעתכם):"
-    )
-    companion = st.text_input("4. ביחד עם:")
-    background = st.text_input("5. המקום, הזמן והרקע שאני מדמיין:")
+    # Single input field for dream description
+    dream_description = st.text_area("בחלומי...", max_chars=200, height=100)
+
+    # Image upload
+    uploaded_file = st.file_uploader("העלו תמונה להנחיית החלום (אופציונלי)", type=["png", "jpg", "jpeg"])
 
     # Generate button
     if st.button("צור תמונה"):
-        if (
-            name
-            and character
-            and clothing
-            and vehicle
-            and companion
-            and background
-        ):
+        if dream_description:
             # Create the complete text
-            complete_text = f"""
-            בחלומי אני {character},
-            לבוש ב{clothing}.
-            אני נוסע ב{vehicle}
-            ביחד עם {companion}.
-            המקום, הזמן והרקע שאני מדמיין: {background}.
-            """
+            complete_text = f"בחלומי {dream_description}"
             st.write("הטקסט המלא:")
             st.info(complete_text)
             complete_text_english = translate_text(complete_text)
-            # st.write("הטקסט המלא באנגלית:")
-            # st.info(complete_text_english)
-
-            # Create an empty container for the fun fact
-            fun_fact_container = st.empty()
+            # complete_text_english = complete_text_english + ". Make sure to include the face in the image, make the hair as similar as possible, pay attention to face shape, shade of skin, glasses, etc."
 
             # Start a spinner while generating the image
             with st.spinner("יוצר את התמונה שלך..."):
@@ -231,7 +257,7 @@ def app():
                 while time.time() - start_time < 10:
                     if int(time.time() - start_time) % 5 == 0:
                         random_fact = random.choice(fun_facts)
-                        fun_fact_container.markdown(
+                        st.markdown(
                             f"<div class='ltr'>{random_fact}</div>",
                             unsafe_allow_html=True,
                         )
@@ -239,11 +265,21 @@ def app():
 
                 # Generate image using Leonardo AI API
                 try:
-                    image_url = generate_image_leonardo(complete_text_english)
+                    init_image_id = None
+                    thumbnail_image = None
+                    if uploaded_file:
+                        init_image_id = upload_image_to_leonardo(uploaded_file)
+                        thumbnail_image = Image.open(uploaded_file)
+                    
+                    image_url = generate_image_leonardo(complete_text_english, init_image_id)
 
                     # Download the image
                     response = requests.get(image_url)
                     img = Image.open(BytesIO(response.content))
+
+                    # If a thumbnail image was uploaded, overlay it on the generated image
+                    if thumbnail_image:
+                        img = overlay_thumbnail(img, thumbnail_image)
 
                     # Convert the image to a format that can be downloaded
                     img_byte_arr = BytesIO()
@@ -262,8 +298,8 @@ def app():
                     )
 
                     # Send email
-                    email_subject = f"New Dream Image Generated by {name}"
-                    email_body = f"A new dream image has been generated by {name} with the following prompt:\n\n{complete_text}"
+                    email_subject = "New Dream Image Generated"
+                    email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
                     if send_email(email_subject, email_body, img_byte_arr):
                         st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
                     else:
@@ -274,7 +310,7 @@ def app():
                         f"An error occurred while generating the image: {str(e)}"
                     )
         else:
-            st.warning("אנא מלאו את כל השדות לפני יצירת התמונה.")
+            st.warning("אנא תארו את החלום שלכם לפני יצירת התמונה.")
 
     # Add a logout button
     if st.button("Logout"):
