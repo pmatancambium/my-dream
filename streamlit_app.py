@@ -19,7 +19,7 @@ from user_data_storage import user_storage
 if "user_data" not in st.session_state:
     st.session_state.user_data = {}
 
-# Load environment variables
+# Load environment variables #
 load_dotenv()
 
 # Leonardo AI API configuration
