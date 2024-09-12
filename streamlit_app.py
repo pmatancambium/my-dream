@@ -13,6 +13,11 @@ from email.mime.image import MIMEImage
 from email.header import Header
 from deep_translator import GoogleTranslator
 import json
+from user_data_storage import user_storage
+
+# if user_data is not in st.session_state, add it with default values
+if "user_data" not in st.session_state:
+    st.session_state.user_data = {}
 
 # Load environment variables
 load_dotenv()
@@ -35,6 +40,7 @@ def authenticate(username, password):
     if username in usernames:
         index = usernames.index(username)
         if passwords[index] == password:
+            st.session_state.username = username  # Store the username in session state
             return True
     return False
 
@@ -77,11 +83,18 @@ def translate_text(text):
     return translator.translate(text)
 
 
-def send_email(subject, body, image_data):
+def send_email(subject, body, image_data, username):
     msg = MIMEMultipart()
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = RECIPIENT_EMAIL
-    msg["Subject"] = Header(subject, "utf-8")
+    
+    # Get the user's image filename without extension
+    user_to_file = st.secrets["user_to_file"]
+    user_image_filename = os.path.splitext(user_to_file.get(username, ""))[0]
+    
+    # Add the user's image filename to the subject
+    full_subject = f"{subject} - {user_image_filename}"
+    msg["Subject"] = Header(full_subject, "utf-8")
 
     # Encode the body as UTF-8
     body_utf8 = body.encode("utf-8")
@@ -109,13 +122,8 @@ def upload_image_to_leonardo(image_file):
         "authorization": f"Bearer {LEONARDO_API_KEY}"
     }
     
-    # Determine the file extension dynamically
-    file_extension = image_file.type.split('/')[-1].lower()
-    if file_extension not in ['png', 'jpeg']:
-        raise ValueError("Unsupported file format. Please upload a PNG or JPEG image.")
-    
-    # Use 'jpg' for 'jpeg' extension
-    payload = {"extension": "jpg" if file_extension == 'jpeg' else "png"}
+    # Assume all images are JPEGs
+    payload = {"extension": "jpg"}
     
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code != 200:
@@ -126,7 +134,7 @@ def upload_image_to_leonardo(image_file):
     upload_url = upload_data['url']
     image_id = upload_data['id']
     
-    files = {'file': (f'image.{file_extension}', image_file.getvalue(), f'image/{file_extension}')}
+    files = {'file': ('image.jpg', image_file, 'image/jpeg')}
     response = requests.post(upload_url, data=fields, files=files)
     if response.status_code != 204:
         raise Exception(f"Failed to upload image: {response.status_code}")
@@ -227,103 +235,139 @@ def overlay_thumbnail(main_image, thumbnail, max_size=(300, 300), position=(10, 
     return main_image
 
 
+def load_user_image(username):
+    user_to_file = st.secrets["user_to_file"]
+    if username in user_to_file:
+        image_path = os.path.join("images", user_to_file[username])
+        if os.path.exists(image_path):
+            return Image.open(image_path)
+    return None
+
+
 def app():
     # 
     st.title("חלום בתמונה")
     st.write("תארו את החלום שלכם בקצרה (עד 200 תווים):")
 
     # Single input field for dream description
-    dream_description = st.text_area("תיאור התמונה", max_chars=200, height=100)
+    dream_description = st.text_area("בחלומי אני...", max_chars=200, height=100, placeholder="לדוגמה: במקום מסוים, עם אדם או חיה וכו'...")
 
-    # Image upload
-    uploaded_file = st.file_uploader("העלו תמונה להנחיית החלום (אופציונלי)", type=["png", "jpg", "jpeg"])
+    # Load and display the user's profile image
+    user_image = load_user_image(st.session_state.username)
+    if user_image:
+        st.image(user_image, caption="Your profile image", width=300)
+    else:
+        st.warning("No profile image found for your account.")
 
     # Set preset style to "UNPROCESSED" without user input
     selected_style = "UNPROCESSED"
 
     # Generate button
     if st.button("צור תמונה"):
-        if dream_description:
-            # Create the complete text
-            complete_text = f"{dream_description}"
-            st.write("הטקסט המלא:")
-            st.info(complete_text)
-            complete_text_english = translate_text(complete_text)
-            # complete_text_english = complete_text_english + ". Make sure to include the face in the image, make the hair as similar as possible, pay attention to face shape, shade of skin, glasses, etc."
+        if user_storage.can_generate_image(st.session_state.username):
+            if dream_description:
+                # Create the complete text
+                complete_text = f"{dream_description}"
+                st.write("הטקסט המלא:")
+                st.info(complete_text)
+                complete_text_english = translate_text(complete_text)
+                complete_text_english = "This is a picture of me. Place me according to the description: I am" + complete_text_english
 
-            # Start a spinner while generating the image
-            with st.spinner("יוצר את התמונה שלך..."):
-                start_time = time.time()
+                # Start a spinner while generating the image
+                with st.spinner("יוצר את התמונה שלך..."):
+                    start_time = time.time()
 
-                # Display fun facts while waiting
-                while time.time() - start_time < 10:
-                    if int(time.time() - start_time) % 5 == 0:
-                        random_fact = random.choice(fun_facts)
-                        st.markdown(
-                            f"<div class='ltr'>{random_fact}</div>",
-                            unsafe_allow_html=True,
+                    # Display fun facts while waiting
+                    while time.time() - start_time < 10:
+                        if int(time.time() - start_time) % 5 == 0:
+                            random_fact = random.choice(fun_facts)
+                            st.markdown(
+                                f"<div class='ltr'>{random_fact}</div>",
+                                unsafe_allow_html=True,
+                            )
+                        time.sleep(1)
+
+                    # Generate image using Leonardo AI API
+                    try:
+                        init_image_id = None
+                        thumbnail_image = None
+                        if user_image:
+                            # Convert PIL Image to bytes
+                            img_byte_arr = BytesIO()
+                            user_image.save(img_byte_arr, format='JPEG')
+                            img_byte_arr.seek(0)  # Reset the buffer position
+                            
+                            init_image_id = upload_image_to_leonardo(img_byte_arr)
+                            thumbnail_image = user_image
+
+                        image_url = generate_image_leonardo(complete_text_english, init_image_id, selected_style)
+
+                        # Download the image
+                        response = requests.get(image_url)
+                        img = Image.open(BytesIO(response.content))
+
+                        # If a thumbnail image was uploaded, overlay it on the generated image
+                        if thumbnail_image:
+                            img = overlay_thumbnail(img, thumbnail_image)
+
+                        # Convert the image to a format that can be downloaded
+                        img_byte_arr = BytesIO()
+                        img.save(img_byte_arr, format="PNG")
+                        img_byte_arr = img_byte_arr.getvalue()
+
+                        # Display the image without any overlay
+                        st.image(img, caption="התמונה שנוצרה מהחלום שלך")
+
+                        # Create two columns for the buttons
+                        col1, col2 = st.columns(2)
+
+                        # Add a download button in the first column
+                        with col1:
+                            st.download_button(
+                                label="הורד את התמונה",
+                                data=img_byte_arr,
+                                file_name="dream_image.png",
+                                mime="image/png",
+                            )
+
+                        # Add a form for email sending in the second column
+                        with col2:
+                            with st.form(key="email_form"):
+                                st.form_submit_button("שלח את התמונה למייל", on_click=send_email_callback, args=(complete_text, img_byte_arr))
+
+                        # Add a button to regenerate the image
+                        if st.button("צור תמונה חדשה", key="regenerate", type="primary"):
+                            st.experimental_rerun()
+
+                        # After successful image generation:
+                        user_storage.increment_image_count(st.session_state.username)
+
+                    except Exception as e:
+                        st.error(
+                            f"An error occurred while generating the image: {str(e)}"
                         )
-                    time.sleep(1)
-
-                # Generate image using Leonardo AI API
-                try:
-                    init_image_id = None
-                    thumbnail_image = None
-                    if uploaded_file:
-                        init_image_id = upload_image_to_leonardo(uploaded_file)
-                        thumbnail_image = Image.open(uploaded_file)
-                    
-                    image_url = generate_image_leonardo(complete_text_english, init_image_id, selected_style)
-
-                    # Download the image
-                    response = requests.get(image_url)
-                    img = Image.open(BytesIO(response.content))
-
-                    # If a thumbnail image was uploaded, overlay it on the generated image
-                    if thumbnail_image:
-                        img = overlay_thumbnail(img, thumbnail_image)
-
-                    # Convert the image to a format that can be downloaded
-                    img_byte_arr = BytesIO()
-                    img.save(img_byte_arr, format="PNG")
-                    img_byte_arr = img_byte_arr.getvalue()
-
-                    # Display the image without any overlay
-                    st.image(img, caption="התמונה שנוצרה מהחלום שלך")
-
-                    # Create two columns for the buttons
-                    col1, col2 = st.columns(2)
-
-                    # Add a download button in the first column
-                    with col1:
-                        st.download_button(
-                            label="הורד את התמונה",
-                            data=img_byte_arr,
-                            file_name="dream_image.png",
-                            mime="image/png",
-                        )
-
-                    # Add a button to send email in the second column
-                    with col2:
-                        if st.button("שלח את התמונה למייל", key="send_email", type="primary"):
-                            email_subject = "New Dream Image Generated"
-                            email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
-                            if send_email(email_subject, email_body, img_byte_arr):
-                                st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
-                            else:
-                                st.warning("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
-
-                except Exception as e:
-                    st.error(
-                        f"An error occurred while generating the image: {str(e)}"
-                    )
+            else:
+                st.warning("אנא תארו את החלום שלכם לפני יצירת התמונה.")
         else:
-            st.warning("אנא תארו את החלום שלכם לפני יצירת התמונה.")
+                st.error("You have reached the maximum number of images you can generate. Please try again later.")
 
     # Add a logout button
     if st.button("Logout"):
         st.session_state.authenticated = False
         st.rerun()
+
+
+# Add this function outside of the app() function
+def send_email_callback(complete_text, img_byte_arr):
+    email_subject = "New Dream Image Generated"
+    email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
+    
+    with st.spinner("שולח את התמונה למייל..."):
+        if send_email(email_subject, email_body, img_byte_arr, st.session_state.username):
+            st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
+            user_storage.set_last_email_sent(st.session_state.username)
+        else:
+            st.error("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
 
 
 if __name__ == "__main__":
