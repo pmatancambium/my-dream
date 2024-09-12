@@ -141,12 +141,15 @@ def generate_image_leonardo(prompt, init_image_id, preset_style):
     }
     payload = {
         "prompt": prompt,
-        "modelId": "1e60896f-3c26-4296-8ecc-53e2afecc132",  # Leonardo Diffusion XL
+        # "modelId": "1e60896f-3c26-4296-8ecc-53e2afecc132",  # Leonardo Diffusion XL
+        "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
+        # "modelId": "ac614f96-1082-45bf-be9d-757f2d31c174",
         "presetStyle": preset_style,
         "photoReal": True,
         "photoRealVersion":"v2",
         "alchemy":True,
         "num_images": 1,
+        "enhancePrompt": True,
         "controlnets": [
             {
                 "initImageId": init_image_id,
@@ -298,13 +301,14 @@ def app():
                         mime="image/png",
                     )
 
-                    # Send email
-                    email_subject = "New Dream Image Generated"
-                    email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
-                    if send_email(email_subject, email_body, img_byte_arr):
-                        st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
-                    else:
-                        st.warning("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
+                    # Add a button to send email
+                    if st.button("שלח את התמונה למייל"):
+                        email_subject = "New Dream Image Generated"
+                        email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
+                        if send_email(email_subject, email_body, img_byte_arr):
+                            st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
+                        else:
+                            st.warning("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
 
                 except Exception as e:
                     st.error(
