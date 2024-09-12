@@ -32,7 +32,7 @@ class UserStorage:
 
     def can_generate_image(self, username):
         user_data = self.get_user_data(username)
-        return user_data["image_count"] < 3  # Limit to 3 images per user
+        return user_data["image_count"] < 1  # Limit to 3 images per user
 
     def can_send_email(self, username):
         user_data = self.get_user_data(username)
