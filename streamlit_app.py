@@ -135,15 +135,18 @@ def upload_image_to_leonardo(image_file):
 
 
 def generate_image_leonardo(prompt, init_image_id, preset_style):
+    if not init_image_id:
+        raise Exception("init_image_id is required")
+    
     headers = {
         "Authorization": f"Bearer {LEONARDO_API_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
         "prompt": prompt,
-        # "modelId": "1e60896f-3c26-4296-8ecc-53e2afecc132",  # Leonardo Diffusion XL
-        "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
-        # "modelId": "ac614f96-1082-45bf-be9d-757f2d31c174",
+        "modelId": "1e60896f-3c26-4296-8ecc-53e2afecc132",  # Leonardo Diffusion XL
+        # "modelId": "aa77f04e-3eec-4034-9c07-d0f619684628",
+        # "modelId": "b63f7119-31dc-4540-969b-2a9df997e173",
         "presetStyle": preset_style,
         "photoReal": True,
         "photoRealVersion":"v2",
@@ -235,13 +238,8 @@ def app():
     # Image upload
     uploaded_file = st.file_uploader("העלו תמונה להנחיית החלום (אופציונלי)", type=["png", "jpg", "jpeg"])
 
-    # Preset style selection
-    preset_styles = [
-        "BOKEH", "CINEMATIC", "CINEMATIC_CLOSEUP", "CREATIVE", "FASHION", "FILM", "FOOD", "HDR",
-        "LONG_EXPOSURE", "MACRO", "MINIMALISTIC", "MONOCHROME", "MOODY", "NEUTRAL", "PORTRAIT",
-        "RETRO", "STOCK_PHOTO", "VIBRANT", "UNPROCESSED"
-    ]
-    selected_style = st.selectbox("בחרו סגנון עיבוד", preset_styles)
+    # Set preset style to "UNPROCESSED" without user input
+    selected_style = "UNPROCESSED"
 
     # Generate button
     if st.button("צור תמונה"):
@@ -293,22 +291,27 @@ def app():
                     # Display the image without any overlay
                     st.image(img, caption="התמונה שנוצרה מהחלום שלך")
 
-                    # Add a download button
-                    st.download_button(
-                        label="הורד את התמונה",
-                        data=img_byte_arr,
-                        file_name="dream_image.png",
-                        mime="image/png",
-                    )
+                    # Create two columns for the buttons
+                    col1, col2 = st.columns(2)
 
-                    # Add a button to send email
-                    if st.button("שלח את התמונה למייל"):
-                        email_subject = "New Dream Image Generated"
-                        email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
-                        if send_email(email_subject, email_body, img_byte_arr):
-                            st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
-                        else:
-                            st.warning("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
+                    # Add a download button in the first column
+                    with col1:
+                        st.download_button(
+                            label="הורד את התמונה",
+                            data=img_byte_arr,
+                            file_name="dream_image.png",
+                            mime="image/png",
+                        )
+
+                    # Add a button to send email in the second column
+                    with col2:
+                        if st.button("שלח את התמונה למייל", key="send_email", type="primary"):
+                            email_subject = "New Dream Image Generated"
+                            email_body = f"A new dream image has been generated with the following prompt:\n\n{complete_text}"
+                            if send_email(email_subject, email_body, img_byte_arr):
+                                st.success("התמונה והפרומפט נשלחו בהצלחה למייל")
+                            else:
+                                st.warning("לא הצלחנו לשלוח את התמונה והפרומפט למייל")
 
                 except Exception as e:
                     st.error(
