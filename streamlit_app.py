@@ -292,7 +292,7 @@ def main():
             st.title("יוצר את התמונה שלך...")
             st.warning("אנא אל תסגור את הדף או תרענן אותו בזמן שאנחנו יוצרים את התמונה שלך.")
             
-            with st.spinner("מעבד את החלום שלך..."):
+            with st.spinner("מעבד את החלום, זה יקח לי כמה דקות - אל תרדמו עדיין"):
                 status_text = st.empty()
                 
                 # Display random fun facts while processing
