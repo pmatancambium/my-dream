@@ -22,10 +22,6 @@ if "user_data" not in st.session_state:
 if "processed_images" not in st.session_state:
     st.session_state.processed_images = None
 
-col1, col2, col3 = st.columns([1,2,1])
-with col2:
-    st.image("main_logo.png", width=600, use_column_width=True)
-
 # Load environment variables #
 load_dotenv()
 
@@ -202,14 +198,14 @@ if "authenticated" not in st.session_state:
 
 # Streamlit app
 def main():
-    if st.session_state.get("email_sent_success", False):
-        success_page()
-    elif not st.session_state.get("authenticated", False):
+    if not st.session_state.get("authenticated", False):
         login_page()
     elif st.session_state.get("show_loading", False):
         loading_page()
     elif st.session_state.get("show_generated_images", False):
         show_generated_images_page()
+    elif st.session_state.get("email_sent_success", False):
+        success_page()
     else:
         main_page()
 
@@ -377,7 +373,6 @@ def show_generated_images_page():
                     if send_email(email_subject, email_body, img_byte_arr, st.session_state.username):
                         user_storage.set_last_email_sent(st.session_state.username)
                         st.session_state.email_sent_success = True
-                        st.session_state.show_generated_images = False  # Add this line
                         st.rerun()
                     else:
                         st.error("לא הצלחנו לשלוח את התמונה והפרומפט")
