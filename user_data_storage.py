@@ -32,8 +32,8 @@ class UserStorage:
 
     def can_generate_image(self, username):
         user_data = self.get_user_data(username)
-        # if user is "דודזלצר"
-        if username == "דודזלצר":
+        # if user is "דודזלצר" or "אורןפונו" or "דבורהאייפרמן" or "שירייכנר"
+        if username == "דודזלצר" or username == "אורןפונו" or username == "דבורהאייפרמן" or username == "שירייכנר":
             return True
         return user_data["image_count"] < 3 # Limit to 3 images per user
 
