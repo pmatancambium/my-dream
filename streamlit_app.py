@@ -26,9 +26,9 @@ if "user_data" not in st.session_state:
 if "processed_images" not in st.session_state:
     st.session_state.processed_images = None
 
-col1, col2, col3 = st.columns([1,2,1])
-with col2:
-    st.image("main_logo.png", width=600, use_column_width=True)
+# col1, col2, col3 = st.columns([1,2,1])
+# with col2:
+st.logo("main_logo.png")
 
 # Load environment variables #
 load_dotenv()
