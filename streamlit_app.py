@@ -277,7 +277,7 @@ def main():
                     if dream_description:
                         st.session_state.complete_text = dream_description
                         st.session_state.page = "loading"
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.warning("אנא תארו את החלום שלכם לפני יצירת התמונה.")
                 else:
@@ -285,7 +285,7 @@ def main():
 
             if st.button("Logout"):
                 st.session_state.authenticated = False
-                st.experimental_rerun()
+                st.rerun()
 
     elif st.session_state.page == "loading":
         with main_container.container():
@@ -308,10 +308,10 @@ def main():
             if processed_images:
                 st.session_state.processed_images = processed_images
                 st.session_state.page = "show_images"
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.session_state.page = "main"
-                st.experimental_rerun()
+                st.rerun()
 
     elif st.session_state.page == "show_images":
         show_generated_images_page()
@@ -421,7 +421,7 @@ def show_generated_images_page():
                     if send_email(email_subject, email_body, img_byte_arr, st.session_state.username, additional_recipient=additional_recipient):
                         user_storage.set_last_email_sent(st.session_state.username)
                         st.session_state.page = "success"
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("לא הצלחנו לשלוח את התמונה והפרומפט")
 
@@ -435,7 +435,7 @@ def show_generated_images_page():
         st.session_state.complete_text = None
         st.session_state.page = "main"
         user_storage.increment_image_count(st.session_state.username)
-        st.experimental_rerun()
+        st.rerun()
 
 if __name__ == "__main__":
     main()
