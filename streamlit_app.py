@@ -157,8 +157,10 @@ def generate_image_leonardo(prompt, init_image_id, preset_style):
         "Authorization": f"Bearer {LEONARDO_API_KEY}",
         "Content-Type": "application/json",
     }
+
+    escaped_prompt = prompt.replace("'", "\\'")
     payload = {
-        "prompt": prompt,
+        "prompt": escaped_prompt,
         "modelId": "1e60896f-3c26-4296-8ecc-53e2afecc132",  # Leonardo Diffusion XL
         "presetStyle": preset_style,
         "photoReal": True,
